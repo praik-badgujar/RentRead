@@ -2,36 +2,47 @@ package com.rent.read.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfiguration;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+
+import com.rent.read.service.CustomUserDetailsService;
 
 @Configuration
-@EnableWebSecurity
-public class SecurityConfig extends WebSecurityConfiguration{
+public class SecurityConfig {
+	
+	private final CustomUserDetailsService userDetailsService;
 
-    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-        auth.inMemoryAuthentication()
-            .withUser("admin").password(passwordEncoder().encode("adminPass")).roles("ADMIN")
-            .and()
-            .withUser("user").password(passwordEncoder().encode("userPass")).roles("USER");
+    public SecurityConfig(CustomUserDetailsService userDetailsService) {
+        this.userDetailsService = userDetailsService;
     }
 
-    protected void configure(HttpSecurity http) throws Exception {
-        http.csrf().disable()
-            .authorizeRequests()
+	@Bean
+	public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+		http.csrf().disable()
+        .authorizeHttpRequests(authorize -> authorize
             .requestMatchers("/public/**").permitAll() // Public endpoints
             .requestMatchers("/admin/**").hasRole("ADMIN") // Admin only endpoints
-            .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN") // User endpoints
-            .and()
-            .httpBasic();
+            .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN") // User and Admin endpoints
+        )
+        .httpBasic(); // Basic authentication
+    
+    return http.build();
+    }
+	
+	@Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
     }
 
     @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+    public AuthenticationProvider authenticationProvider() {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userDetailsService);
+        provider.setPasswordEncoder(passwordEncoder());
+        return provider;
     }
 }
